@@ -127,6 +127,6 @@ For questions or support, please contact **Seb70197** via GitHub.
 
 ## Acknowledgments
 
-- [Fortnite API](https://fortniteapi.com/) for providing player statistics.
+- [Fortnite API](https://fortniteapi.io/) for providing player statistics.
 - [Azure SQL Database](https://azure.microsoft.com/en-us/services/sql-database/) for data storage.
 - [GitHub Actions](https://github.com/features/actions) for workflow automation.
