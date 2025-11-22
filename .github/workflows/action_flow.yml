@@ -1,0 +1,35 @@
+name: API Connection Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-connection:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install prerequisites and ODBC 18 driver
+      run: |
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive ACCEPT_EULA=Y apt-get install -y \
+            curl unixodbc unixodbc-dev apt-transport-https ca-certificates \
+            gnupg python3 python3-pip
+        curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+        curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
+        apt-get update
+        ACCEPT_EULA=Y apt-get install -y msodbcsql18
+        pip3 install --upgrade pip setuptools wheel
+        pip3 install --upgrade os pandas requests
+
+    - name: Run api_test script
+      env:
+        HEADER_API_TYPE: ${{ secrets.HEADER_API_TYPE }}
+        HEADER_API_VALUE: ${{ secrets.HEADER_API_VALUE }}
+
+      run: python3 __main__.py
