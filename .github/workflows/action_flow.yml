@@ -25,7 +25,7 @@ jobs:
         apt-get update
         ACCEPT_EULA=Y apt-get install -y msodbcsql18
         pip3 install --upgrade pip setuptools wheel
-        pip3 install --upgrade pandas requests
+        pip3 install --upgrade pandas requests sqlalchemy pyodbc
 
     - name: Run api_test script
       env:
