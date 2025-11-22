@@ -3,48 +3,67 @@ from src.fortnite_api import *
 from src.azure_db import *
 from sqlalchemy import text 
 
-#Connect to Azure DB
-engine = azure_db_connect()
+def connect_to_db():
+    """
+    Connect to the Azure database and return the engine.
+    """
+    engine = azure_db_connect()
+    return engine
 
-print('Starting Fortnite Player Stats Update Process')
+def retrieve_existing_data(engine):
+    """
+    Retrieve existing players from the database.
+    """
+    players_df = pd.read_sql("SELECT * FROM fortnite_player", con=engine)
+    players_stats_hist = pd.read_sql("SELECT * FROM fortnite_player_stats", con=engine)
+    return players_df, players_stats_hist
 
-print('Retrieving existing players from the database...')
-#Identify existing players in DB
-players_df = pd.read_sql("SELECT * FROM fortnite_player", con=engine)
+def upload_data(engine, players_stats_hist, players_stats_current):
+    """
+    Upload the cleaned data to the database.
+    """
+    if pd.to_datetime(players_stats_hist['update_date'].max()).date() == date.today():
+        print("Stats for today already exist in the historical table.")
+    else:
+        with engine.begin() as conn:
+            #Reliable fallback that respects FK constraints:
+            conn.execute(text("DELETE FROM fortnite_player_stats"))
 
-print('Retrieving existing player stats from the database...')
-#Player stats from the latest update (before new date is added)
-players_stats_hist = pd.read_sql("SELECT * FROM fortnite_player_stats", con=engine)
+            #Update Current Stats to players_stats
+            players_stats_current.to_sql('fortnite_player_stats', con=engine, if_exists='append', index=False)
+            #Update same Stats to players_stats_hist --> Place a security to check if stats were already inserted for the day
+            players_stats_current.to_sql('fortnite_player_stats_hist', con=engine, if_exists='append', index=False)
+        print('Data upload complete.')
 
-print('Getting today\'s stats from Fortnite API...')
-#Get today's stats from Fortnite API
-players_stats_current = get_stats(players_df)
+def main():
+    #Connect to Azure DB
+    print('Connecting to the database...')
+    engine = connect_to_db()
 
-print('Cleaning the data retrieved...')
-#Clean the data retrieved
-players_stats_current = clean_current_stats(players_stats_current)
+    #Retrieve existing players from DB
+    print('Retrieving existing players and history stats from the database...')
+    players_df, players_stats_hist = retrieve_existing_data(engine)
 
-#final clean before upload
-players_stats_current_update = clean_upload_stats(players_stats_hist, players_stats_current)
+    #Get today's stats from Fortnite API
+    print('Getting today\'s stats from Fortnite API...')
+    players_stats_current = get_stats(players_df)
 
-#Upload data to Azure DB
-print('Uploading the data to the database...')
+    #Clean the data retrieved
+    print('Cleaning the data retrieved...')
+    players_stats_current = clean_current_stats(players_stats_current)
 
-if pd.to_datetime(players_stats_hist['update_date'].max()).date() == date.today():
-    print("Stats for today already exist in the historical table.")
-else:
+    #compare current stats with historical stats and prepare for upload
+    players_stats_current_update = clean_upload_stats(players_stats_hist, players_stats_current)
 
-    with engine.begin() as conn:
-        #Reliable fallback that respects FK constraints:
-        conn.execute(text("DELETE FROM fortnite_player_stats"))
+    #Upload data to Azure DB
+    print('Uploading the data to the database...')
+    upload_data(engine, players_stats_hist, players_stats_current_update)
 
-        #Update Current Stats to players_stats
-        players_stats_current_update.to_sql('fortnite_player_stats', con=engine, if_exists='append', index=False)
-        #Update same Stats to players_stats_hist --> Place a security to check if stats were already inserted for the day
-        players_stats_current_update.to_sql('fortnite_player_stats_hist', con=engine, if_exists='append', index=False)
-    print('Data upload complete.')
-#Dispose engine after all DB operations are complete
-engine.dispose()
+    #Dispose engine after all DB operations are complete
+    engine.dispose()
+
+if __name__ == "__main__":
+    main()
 
 
 
